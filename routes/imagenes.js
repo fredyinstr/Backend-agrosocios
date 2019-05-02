@@ -1,5 +1,6 @@
 var express = require('express');
 
+// Inicializar variables
 var app = express();
 
 // obtener el path del este archivo

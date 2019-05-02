@@ -101,7 +101,7 @@ app.put('/:id', mdAutenticacion.verificaToken, (req, res) => {
             return res.status(400).json({
                 ok: false,
                 mensaje: 'El proyecto con el id ' + id + ' no existe',
-                errors: { message: 'No existe usuario con este ID' }
+                errors: { message: 'No existe un proyecto con este ID' }
             });
         }
 

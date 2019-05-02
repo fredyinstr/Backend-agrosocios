@@ -1,50 +1,48 @@
 var express = require('express');
-var bcrypt = require('bcryptjs');
-var jwt = require('jsonwebtoken');
+//var bcrypt = require('bcryptjs');
+// var jwt = require('jsonwebtoken');
 
 var mdAutenticacion = require('../middlewares/autenticacion');
 
-var SEED = require('../config/config').SEED;
+//var SEED = require('../config/config').SEED;
 
 var app = express();
 
-// Importamos el modelo de datos
-var Usuario = require('../models/usuario');
+
+var Seccion = require('../models/seccion');
+var Categoria = require('../models/categoria');
 
 // =======================================================
-// Obtener todos los usuarios
+// Obtener todas las secciones
 // =======================================================
 app.get('/', (req, res, next) => {
 
-    var desde = req.query.desde || 0;
-    desde = Number(desde);
+    // var desde = req.query.desde || 0;
+    // desde = Number(desde);
 
-    Usuario.find({}, 'nombre email img role')
-        .skip(desde)
-        .limit(5)
+    Seccion.find({}, 'nombre descripcion')
         .exec(
-            (err, usuarios) => {
+            (err, secciones) => {
                 if (err) {
                     return res.status(500).json({
                         ok: false,
-                        mensaje: 'Error cargando usuario',
+                        mensaje: 'Error cargando secciones',
                         errors: err
                     });
                 }
-                Usuario.count({}, (err, conteo) => {
+
+                Seccion.countDocuments({}, (err, conteo) => {
                     res.status(200).json({
                         ok: true,
-                        usuarios: usuarios,
+                        secciones: secciones,
                         total: conteo
                     });
                 });
-
-
             });
 });
 
 // =======================================================
-// Actualizar un usuario 
+// Actualizar una seccion 
 // =======================================================
 
 app.put('/:id', mdAutenticacion.verificaToken, (req, res) => {
@@ -52,41 +50,39 @@ app.put('/:id', mdAutenticacion.verificaToken, (req, res) => {
     var id = req.params.id;
     var body = req.body;
 
-    Usuario.findById(id, (err, usuario) => {
+    Seccion.findById(id, (err, seccion) => {
 
         if (err) {
             return res.status(500).json({
                 ok: false,
-                mensaje: 'Error al buscar usuario!',
+                mensaje: 'Error al buscar seccion!',
                 errors: err
             });
         }
 
-        if (!usuario) {
+        if (!seccion) {
             return res.status(400).json({
                 ok: false,
-                mensaje: 'El usuario con el id ' + id + ' no existe',
-                errors: { message: 'No existe usuario con este ID' }
+                mensaje: 'La sección con el id ' + id + ' no existe',
+                errors: { message: 'No existe una sección con este ID' }
             });
         }
 
-        usuario.nombre = body.nombre;
-        usuario.email = body.email;
-        usuario.role = body.role;
+        seccion.nombre = body.nombre;
+        seccion.descripcion = body.descripcion;
 
-        usuario.save((err, usuarioGuardado) => {
+        seccion.save((err, seccionGuardada) => {
             if (err) {
                 return res.status(400).json({
                     ok: false,
-                    mensaje: 'Error al actualizar usuario',
+                    mensaje: 'Error al actualizar seccion',
                     errors: err
                 });
             }
-            usuarioGuardado.password = ':)';
 
             res.status(200).json({
                 ok: true,
-                usuario: usuarioGuardado
+                seccion: seccionGuardada
             });
         });
     });
@@ -94,34 +90,31 @@ app.put('/:id', mdAutenticacion.verificaToken, (req, res) => {
 
 
 // =======================================================
-// Crear nuevo usuario
+// Crear nueva seccion
 // =======================================================
 
-app.post('/', (req, res) => {
+app.post('/', mdAutenticacion.verificaToken, (req, res) => {
     var body = req.body;
 
-    // Usamos el model Usuario
-    var usuario = new Usuario({
+    // Usamos el model Seccion
+    var seccion = new Seccion({
         nombre: body.nombre,
-        email: body.email,
-        password: bcrypt.hashSync(body.password, 10),
-        img: body.img,
-        role: body.role
+        descripcion: body.descripcion
     });
 
-    usuario.save((err, usuarioGuardado) => {
+    seccion.save((err, seccionCreada) => {
 
         if (err) {
             return res.status(400).json({
                 ok: false,
-                mensaje: 'Error al crear usuario',
+                mensaje: 'Error al crear seccion',
                 errors: err
             });
         }
         // El objeto usuarioToken que es el usuario autenticado me la proporciona el middleware mdAutenticacion.verificaToken
         res.status(201).json({
             ok: true,
-            usuario: usuarioGuardado,
+            seccion: seccionCreada,
             usuarioToken: req.usuario
         });
 
@@ -132,36 +125,44 @@ app.post('/', (req, res) => {
 
 
 // =======================================================
-// Borrar un usuario 
+// Borrar una seccion 
 // =======================================================
 
 app.delete('/:id', mdAutenticacion.verificaToken, (req, res) => {
     var id = req.params.id;
 
-    Usuario.findByIdAndRemove(id, (err, usuarioBorrado) => {
+    Seccion.findByIdAndRemove(id, (err, seccionBorrada) => {
 
         if (err) {
             return res.status(500).json({
                 ok: false,
-                mensaje: 'Error al borrar usuario',
+                mensaje: 'Error al borrar sección',
                 errors: err
             });
         }
 
-        if (!usuarioBorrado) {
+        if (!seccionBorrada) {
             return res.status(400).json({
                 ok: false,
-                mensaje: 'No existe un usuario con ese id',
-                errors: { message: 'No existe un usuario con ese id' }
+                mensaje: 'No existe una sección con ese id',
+                errors: { message: 'No existe una sección con ese id' }
             });
         }
 
-        res.status(200).json({
-            ok: true,
-            usuario: usuarioBorrado
+        // Debemos eliminar las referencias hechas en la colección Categorías
+        Categoria.deleteMany({ seccion: id }, function(err) {
+            res.status(500).json({
+                ok: false,
+                mensaje: "error al borrar referencias"
+            });
         });
 
-    })
-})
+        res.status(200).json({
+            ok: true,
+            usuario: seccionBorrada
+        });
+
+    });
+});
 
 module.exports = app;
