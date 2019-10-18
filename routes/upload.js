@@ -8,6 +8,7 @@ var app = express();
 var Usuario = require('../models/usuario');
 var Proyecto = require('../models/proyecto');
 var ImgsProyecto = require('../models/imgsProyecto');
+var Articulo = require('../models/articulo');
 
 // Esta librería permite acceder a los archivos subidos al servidor
 var fs = require('fs');
@@ -22,14 +23,14 @@ app.put('/:tipo/:id', (req, res, next) => {
     var id = req.params.id;
 
     // tipos válidos
-    var tiposValidos = ['usuarios', 'imgsProyectos'];
+    var tiposValidos = ['usuarios', 'imgsProyectos', 'articulos'];
 
     if (tiposValidos.indexOf(tipo) < 0) {
         return res.status(400).json({
             ok: false,
             mensaje: 'Tipo de colección no válida',
             errors: { message: 'colecciones válidas: ' + tiposValidos.join(', ') }
-        })
+        });
     }
     // Si no hay un archivo en la petición...
     if (!req.files) {
@@ -37,7 +38,7 @@ app.put('/:tipo/:id', (req, res, next) => {
             ok: false,
             mensaje: 'No seleccionó nada',
             errors: { message: 'Debe seleccionar una imagen' }
-        })
+        });
     }
 
     // Obtener el nombre del archivo de la referencia imagen
@@ -48,7 +49,10 @@ app.put('/:tipo/:id', (req, res, next) => {
 
     // Extensiones válidas
 
-    var extensionesValidas = ['jpg', 'png', 'gif', 'jpeg'];
+    var extensionesValidas = ['jpg', 'JPG',
+        'png', 'PNG',
+        'gif', 'GIF', 'jpeg', 'JPEG'
+    ];
 
     if (extensionesValidas.indexOf(extensionArchivo) < 0) {
         return res.status(400).json({
@@ -83,7 +87,7 @@ function subirPorTipo(tipo, path, id, archivo, nombreArchivo, res) {
                     ok: false,
                     mensaje: 'Id de usuario no encontrada',
                     errors: 'Id de usuario no encontrada ' + err
-                })
+                });
             }
             // Movemos el archivo
             archivo.mv(path, err => {
@@ -113,7 +117,6 @@ function subirPorTipo(tipo, path, id, archivo, nombreArchivo, res) {
                 })
             })
         });
-
     }
 
     if (tipo === 'imgsProyectos') {
@@ -151,7 +154,7 @@ function subirPorTipo(tipo, path, id, archivo, nombreArchivo, res) {
             var imgProyecto = new ImgsProyecto({
                 proyecto: id,
                 img: nombreArchivo
-            })
+            });
 
             imgProyecto.save((err, imgCreada) => {
 
@@ -170,12 +173,53 @@ function subirPorTipo(tipo, path, id, archivo, nombreArchivo, res) {
                         imagen: imgCreada
                     });
                 });
-            })
-
-
+            });
         });
-
     }
+
+    // Subir imágenes de los artículos de la tienda
+
+    if (tipo === 'articulos') {
+
+        // verificamos si existe la id 
+        Articulo.findById(id, (err, articulo) => {
+
+            if (err) {
+                return res.status(404).json({
+                    ok: false,
+                    mensaje: 'Id de articulo no encontrada',
+                    errors: 'Id de articulo no encontrada ' + err
+                });
+            }
+            // Movemos el archivo
+            archivo.mv(path, err => {
+                if (err) {
+                    return res.status(500).json({
+                        ok: false,
+                        mensaje: 'Error al mover archivo',
+                        errors: err
+                    });
+                }
+            });
+
+
+            // Si ya existe una imagen para este articulo, la eliminamos para cargar la nueva
+            // y no cargar el servidor con imágenes obsoletas
+            // var pathViejo = './uploads/articulos/' + articulo.img;
+            // if (fs.existsSync(pathViejo)) {
+            //     fs.unlinkSync(pathViejo);
+            // }
+            articulo.imagenes.push(nombreArchivo);
+            articulo.save((err, articuloActualizado) => {
+                return res.status(200).json({
+                    ok: true,
+                    mensaje: 'Imagen de articulo actualizada',
+                    articulo: articuloActualizado
+                });
+            });
+        });
+    }
+
 }
 
 

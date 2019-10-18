@@ -7,6 +7,7 @@ var app = express();
 
 var Proyecto = require('../models/proyecto');
 var Usuario = require('../models/usuario');
+var Articulo = require('../models/articulo');
 
 // ============================================
 // Búsqueda por colección específica
@@ -25,20 +26,23 @@ app.get('/coleccion/:tabla/:busqueda', (req, res, next) => {
         case 'proyectos':
             promesa = buscarProyectos(busqueda, expReg);
             break;
+        case 'articulos':
+            promesa = buscarArticulos(busqueda, expReg);
+            break;
         default:
             return res.status(400).json({
                 ok: false,
                 error: { message: 'tipo de colección no válido' }
-            })
+            });
     }
 
     promesa.then(data => {
-        res.status(400).json({
+        res.status(200).json({
             ok: true,
             [tabla]: data
-        })
-    })
-})
+        });
+    });
+});
 
 // ============================================
 // Búsqueda general
@@ -88,8 +92,22 @@ function buscarProyectos(busqueda, expReg) {
                 } else {
                     resolve(proyectos);
                 }
-            })
-    })
+            });
+    });
+}
+
+function buscarArticulos(busqueda, expReg) {
+
+    return new Promise((resolve, reject) => {
+        Articulo.find({ nombre: expReg })
+            .exec((err, proyectos) => {
+                if (err) {
+                    reject('Error al buscar proyectos', err);
+                } else {
+                    resolve(proyectos);
+                }
+            });
+    });
 }
 
 

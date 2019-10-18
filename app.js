@@ -22,7 +22,6 @@ app.use(function(req, res, next) {
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
-
 // Importar rutas
 
 var appRoutes = require('./routes/app');

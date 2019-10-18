@@ -7,6 +7,7 @@ var mdAutenticacion = require('../middlewares/autenticacion');
 //var SEED = require('../config/config').SEED;
 
 var app = express();
+var fs = require('fs');
 
 
 var Categoria = require('../models/categoria');
@@ -22,8 +23,7 @@ app.get('/', (req, res, next) => {
     desde = Number(desde);
 
     Articulo.find({})
-        .skip(desde)
-        .limit(5)
+        .sort('-creado')
         .exec(
             (err, articulos) => {
                 if (err) {
@@ -44,6 +44,33 @@ app.get('/', (req, res, next) => {
             });
 });
 
+// =======================================================
+// Obtener un artículo
+// =======================================================
+app.get('/:id', (req, res) => {
+    var id = req.params.id;
+    Articulo.findById(id)
+        .exec((err, articulo) => {
+            if (err) {
+                return res.status(500).json({
+                    ok: false,
+                    mensaje: 'Error al buscar artículo',
+                    errors: err
+                });
+            }
+            if (!articulo) {
+                return res.status(400).json({
+                    ok: false,
+                    mensaje: 'El artículo con el id ' + id + ' no existe',
+                    errors: { mensaje: 'No existe artículo con ese ID' }
+                });
+            }
+            res.status(200).json({
+                ok: true,
+                articulo: articulo
+            })
+        });
+});
 // =======================================================
 // Actualizar un artículo 
 // =======================================================
@@ -100,18 +127,10 @@ app.put('/:id', mdAutenticacion.verificaToken, (req, res) => {
 // Crear nuevo artículo
 // =======================================================
 
-app.post('/', mdAutenticacion.verificaToken, (req, res) => {
+app.post('/', (req, res) => {
     var body = req.body;
 
-    idseccion = body.idseccion;
-    idcategoria = body.idcategoria;
-
-    if (!idseccion) {
-        return res.status(400).json({
-            ok: false,
-            mensaje: 'debe seleccionar una sección'
-        });
-    }
+    idcategoria = body.categoria;
 
     if (!idcategoria) {
         return res.status(400).json({
@@ -120,78 +139,62 @@ app.post('/', mdAutenticacion.verificaToken, (req, res) => {
         });
     }
 
-    // Verificamos que el id de sección exista
-    Seccion.findById(idseccion, (err, seccion) => {
+    // Con el id de categoría encontramos la sección a la que pertenece
+
+    Categoria.findById(idcategoria, (err, categoria) => {
 
         if (err) {
             return res.status(500).json({
                 ok: false,
-                mensaje: 'Error al buscar la sección!',
+                mensaje: 'Error con la categoría!',
                 errors: err
             });
         }
 
-        if (!seccion) {
+        if (!categoria) {
             return res.status(400).json({
                 ok: false,
-                mensaje: 'La sección con el id ' + id + ' no existe',
-                errors: { message: 'No existe una sección con este ID' }
+                mensaje: 'La categoría con el id ' + id + ' no existe',
+                errors: { message: 'No existe una categoría con este ID' }
             });
         }
 
-        // Verificamos que el id de categoría exista
-        Categoria.findById(idcategoria, (err, categoria) => {
+        idSeccion = categoria.seccion;
+
+        // La sección y la categoría existen, entonces vamos a crear el artículo
+
+        // Usamos el model Artículo
+        var articulo = new Articulo({
+            codigo: body.codigo,
+            nombre: body.nombre,
+            descripcion: body.descripcion,
+            precio: body.precio,
+            cantidad: body.cantidad,
+            seccion: idSeccion,
+            categoria: idcategoria
+        });
+
+        articulo.save((err, articuloCreado) => {
 
             if (err) {
-                return res.status(500).json({
+                return res.status(400).json({
                     ok: false,
-                    mensaje: 'Error al buscar la categoría!',
+                    mensaje: 'Error al crear el artículo',
                     errors: err
                 });
             }
 
-            if (!categoria) {
-                return res.status(400).json({
-                    ok: false,
-                    mensaje: 'La categoría con el id ' + id + ' no existe',
-                    errors: { message: 'No existe una categoría con este ID' }
-                });
-            }
 
-            // La sección y la categoría existen, entonces vamos a crear el artículo
-
-            // Usamos el model Artículo
-            var articulo = new Articulo({
-                nombre: body.nombre,
-                descripcion: body.descripcion,
-                precio: body.precio,
-                cantidad: body.cantidad,
-                seccion: idseccion,
-                categoria: idcategoria
-            });
-
-            articulo.save((err, articuloCreado) => {
-
-                if (err) {
-                    return res.status(400).json({
-                        ok: false,
-                        mensaje: 'Error al crear el artículo',
-                        errors: err
-                    });
-                }
-
-
-                //seccion.categorias.push(categoriaCreada._id);
-                // El objeto usuarioToken que es el usuario autenticado me la proporciona el middleware mdAutenticacion.verificaToken
-                res.status(201).json({
-                    ok: true,
-                    articulo: articuloCreado,
-                    usuarioToken: req.usuario
-                });
-
+            //seccion.categorias.push(categoriaCreada._id);
+            // El objeto usuarioToken que es el usuario autenticado me la proporciona el middleware mdAutenticacion.verificaToken
+            res.status(201).json({
+                ok: true,
+                articulo: articuloCreado,
+                usuarioToken: req.usuario
             });
 
         });
+
 
     });
 
@@ -200,7 +203,7 @@ app.post('/', mdAutenticacion.verificaToken, (req, res) => {
 // Borrar un artículo
 // =======================================================
 
-app.delete('/:id', mdAutenticacion.verificaToken, (req, res) => {
+app.delete('/:id', (req, res) => {
     var id = req.params.id;
 
     Articulo.findByIdAndRemove(id, (err, articuloBorrado) => {
@@ -220,6 +223,20 @@ app.delete('/:id', mdAutenticacion.verificaToken, (req, res) => {
                 errors: { message: 'No existe una artículo con ese id' }
             });
         }
+
+        // Eliminamos la imagen del artículo
+
+        articuloBorrado.imagenes.forEach(function(valor, indice, array) {
+            var pathImagen = './uploads/articulos/' + valor;
+            if (fs.existsSync(pathImagen)) {
+                fs.unlinkSync(pathImagen);
+            }
+        });
+
+        // var pathImagen = './uploads/articulos/' + articuloBorrado.imagenes[0];
+        // if (fs.existsSync(pathImagen)) {
+        //     fs.unlinkSync(pathImagen);
+        // }
 
         res.status(200).json({
             ok: true,

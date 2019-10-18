@@ -103,6 +103,7 @@ app.post('/', (req, res) => {
     // Usamos el model Usuario
     var usuario = new Usuario({
         nombre: body.nombre,
+        apellido: body.apellido,
         email: body.email,
         password: bcrypt.hashSync(body.password, 10),
         img: body.img,

@@ -41,6 +41,30 @@ app.get('/', (req, res, next) => {
             });
 });
 
+// Obtener categorias agrupadas por sección
+app.get('/porseccion', (req, res, next) => {
+    Categoria.aggregate([{
+        $group: {
+            _id: "$seccion",
+            count: { $sum: 1 },
+            entry: {
+                $push: {
+                    nombre: "$nombre"
+                }
+            }
+        }
+    }], function(err, result) {
+        if (err) {
+            next(err);
+        } else {
+            res.status(200).json({
+                ok: true,
+                categorias: result
+            });
+        }
+    });
+});
+
 // =======================================================
 // Actualizar una categoria 
 // =======================================================
@@ -93,67 +117,33 @@ app.put('/:id', mdAutenticacion.verificaToken, (req, res) => {
 // Crear nueva categoria
 // =======================================================
 
-app.post('/', mdAutenticacion.verificaToken, (req, res) => {
+app.post('/', (req, res) => {
     var body = req.body;
 
 
-    // Primero verificamos que el usuario envíe el id de sección a la cual pertenecerá la categoría
-    idseccion = body.idseccion;
+    // Usamos el model Categoria y la creamos
+    var categoria = new Categoria({
+        nombre: body.nombre,
+        seccion: body.seccion
+    });
 
-    if (!idseccion) {
-        return res.status(400).json({
-            ok: false,
-            mensaje: 'debe seleccionar una sección'
-        });
-    }
-
-    // Verificamos que el id de sección exista
-    Seccion.findById(idseccion, (err, seccion) => {
+    categoria.save((err, categoriaCreada) => {
 
         if (err) {
-            return res.status(500).json({
+            return res.status(400).json({
                 ok: false,
-                mensaje: 'Error al buscar la sección!',
+                mensaje: 'Error al crear categoria, verifique que no esté creada ya',
                 errors: err
             });
         }
 
-        if (!seccion) {
-            return res.status(400).json({
-                ok: false,
-                mensaje: 'La sección con el id ' + id + ' no existe',
-                errors: { message: 'No existe una sección con este ID' }
-            });
-        }
 
-        // La sección existe, entonces vamos a crear la categoría y la asociamos a esa sección
-
-        // Usamos el model Categoria y la creamos
-        var categoria = new Categoria({
-            nombre: body.nombre,
-            descripcion: body.descripcion,
-            seccion: idseccion
-        });
-
-        categoria.save((err, categoriaCreada) => {
-
-            if (err) {
-                return res.status(400).json({
-                    ok: false,
-                    mensaje: 'Error al crear categoria',
-                    errors: err
-                });
-            }
-
-
-            //seccion.categorias.push(categoriaCreada._id);
-            // El objeto usuarioToken que es el usuario autenticado me la proporciona el middleware mdAutenticacion.verificaToken
-            res.status(201).json({
-                ok: true,
-                categoria: categoriaCreada,
-                usuarioToken: req.usuario
-            });
-
+        //seccion.categorias.push(categoriaCreada._id);
+        // El objeto usuarioToken que es el usuario autenticado me la proporciona el middleware mdAutenticacion.verificaToken
+        res.status(201).json({
+            ok: true,
+            categoria: categoriaCreada,
+            usuarioToken: req.usuario
         });
 
     });
